@@ -7,61 +7,87 @@ static const BaseType_t app_cpu = 0;
 static const BaseType_t app_cpu = 1;
 #endif
 
-// pins
-const int ledPin1 = 23;
-const int ledPin2 = 22;
+const char msg[] = "Barkadeer brig Arr booty rum";
 
-// task: blink led
-void toggleLED(void *parameter) {
-  while(1) {
-    digitalWrite(ledPin1, HIGH);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-    digitalWrite(ledPin1, LOW);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-  }
-}
+// task handles
+static TaskHandle_t task_1 = NULL;
+static TaskHandle_t task_2 = NULL;
 
-void blinkTwice (void *parameter) {
-  while(1) {
-    digitalWrite(ledPin2, HIGH);
-    vTaskDelay(800 / portTICK_PERIOD_MS);
-    digitalWrite(ledPin2, LOW);
-    vTaskDelay(800 / portTICK_PERIOD_MS);
-    digitalWrite(ledPin2, HIGH);
-    vTaskDelay(800 / portTICK_PERIOD_MS);
-    digitalWrite(ledPin2, LOW);
+// ---------------- Tasks ---------------- //
+
+void startTask1(void *parameter) {
+
+  // Count number of characteds in string
+  int msg_len = strlen(msg);
+
+  while (1) {
+    Serial.println('*');
+    for (int i = 0; i < msg_len; i++) {
+      Serial.print(msg[i]);
+    }
+    Serial.println();
     vTaskDelay(1000 / portTICK_PERIOD_MS);
   }
 }
 
-void setup() {
-  // init led pin
-  pinMode(ledPin1, OUTPUT);
-  pinMode(ledPin2, OUTPUT);
+void startTask2(void *parameter) {
+  while (1) {
+    Serial.println("*");
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+  }
+}
 
-  // create task
-  // we want to run this task on just 1 core, so we use xTaskCreatePinnedToCore instead of xTaskCreate
-  xTaskCreatePinnedToCore(
-    toggleLED, // function to be called
-    "Toggle LED", // name of the task
-    1024, // stack size (bytes in esp32, words in FreeRTOS)
-    NULL, // parameter to be passed to the function
-    1, // task priorities (0 is the lowest priority __ and configMAX_PRIORITIES - 1 is the highest priority)
-    NULL, // task handle (not used here)
-    app_cpu // core to run the task on (0 or 1) __ run on one core for demo purposes (ESP32 only)
+// ---------------- Main (runss as it's own task with priority 1 on core 1)
+// ---------------- //
+
+void setup() {
+  Serial.begin(115200);
+
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  Serial.println();
+  Serial.println("FreeRTOS task demo...");
+
+  // print self priority
+  Serial.print("Setup and loop running on core");
+  Serial.println(xPortGetCoreID());
+  Serial.print("With priority ");
+  Serial.println(uxTaskPriorityGet(NULL));
+
+  // create task 1
+  xTaskCreatePinnedToCore(startTask1, // function that implements the task
+                          "Task 1",   // name of the task
+                          1024,       // stack size in words
+                          NULL,       // task input parameter
+                          1,          // priority of the task
+                          &task_1,    // task handle
+                          app_cpu     // core where the task should run
   );
 
-  xTaskCreatePinnedToCore(
-    blinkTwice, // function to be called
-    "Blink Twice", // name of the task
-    1024, // stack size (bytes in esp32, words in FreeRTOS)
-    NULL, // parameter to be passed to the function
-    1, // task priorities (0 is the lowest priority __ and configMAX_PRIORITIES - 1 is the highest priority)
-    NULL, // task handle (not used here)
-    app_cpu // core to run the task on (0 or 1) __ run on one core for demo purposes (ESP32 only)
+  // create task 2
+  xTaskCreatePinnedToCore(startTask2, // function that implements the task
+                          "Task 2",   // name of the task
+                          1024,       // stack size in words
+                          NULL,       // task input parameter
+                          2,          // priority of the task
+                          &task_2,    // task handle
+                          app_cpu     // core where the task should run
   );
 }
 
 void loop() {
-// nothing to do here, the task will run independently
+
+  // Suspend the higher priority task for some intervals
+  for (int i = 0; i < 3; i++) {
+    vTaskSuspend(task_2);
+
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    vTaskResume(task_2);
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+  }
+
+  // Delete the lower priority task
+  if (task_1 != NULL) {
+    vTaskDelete(task_1);
+    task_1 = NULL;
+  }
 }

@@ -7,98 +7,72 @@ static const BaseType_t app_cpu = 0;
 static const BaseType_t app_cpu = 1;
 #endif
 
-// const char msg[] = "Barkadeer brig Arr booty rum";
-const int ledPin = 23;
 
-// task handles
-// static TaskHandle_t task_1 = NULL;
-// static TaskHandle_t task_2 = NULL;
-
-static TaskHandle_t read_serial = NULL;
-static TaskHandle_t blink_led = NULL;
-
-// ---------------- Tasks ---------------- //
-
-void readSerial(void *parameter) {
+void testTask (void *parameter) {
   while (1) {
-    if (Serial.available() > 0) {
-      vTaskSuspend(blink_led);
-      String inputStr = Serial.readString();
-      inputStr.trim();
-      int input = inputStr.toInt();
-      Serial.println("Received input: " + String(input));
-      digitalWrite(ledPin, HIGH);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      digitalWrite(ledPin, LOW);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      digitalWrite(ledPin, HIGH);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      digitalWrite(ledPin, LOW);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      digitalWrite(ledPin, HIGH);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      digitalWrite(ledPin, LOW);
-      vTaskDelay(input / portTICK_PERIOD_MS);
-      vTaskResume(blink_led);
+    int a = 1;
+    int b[100];
+
+    for (int i = 0; i < 100; i++) {
+      b[i] = a + 1;
     }
+    Serial.println(b[0]);
+
+    // peint out remaining stack memory in words
+    Serial.print("High water mark (words): ");
+    Serial.println(uxTaskGetStackHighWaterMark(NULL));
+
+    // Peint out number of free heap memory bytes before malloc
+    Serial.print("Heap before malloc (bytes): ");
+    Serial.println(xPortGetFreeHeapSize());
+
+    int *ptr = (int *)pvPortMalloc(1024 * sizeof(int));
+
+    // checking heap overflow by checking malloc output
+    if(ptr == NULL) {
+      Serial.println("Not enough heap:");
+    } else {
+      // Do something with the allocated memory so it's not optimized out by the compiler
+      for (int i = 0; i < 1024; i++) {
+        ptr[i] = 3;
+      }
+    }
+
+    // Peint out number of free heap memory bytes after malloc
+    Serial.print("Heap after malloc (bytes): ");
+    Serial.println(xPortGetFreeHeapSize());
+
+
+    // Free up our allocated memory
+    vPortFree(ptr);
     vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
-void blinkLed (void *parameter) {
-
-  while (1) {
-    digitalWrite(ledPin, HIGH);
-    vTaskDelay(300 / portTICK_PERIOD_MS);
-    digitalWrite(ledPin, LOW);
-    vTaskDelay(300 / portTICK_PERIOD_MS);
-  }
-}
-
-
-// ---------------- Main (runss as it's own task with priority 1 on core 1)
-// ---------------- //
-
 void setup() {
-  
   Serial.begin(115200);
-  pinMode(ledPin, OUTPUT);
-  // create task 1
-  xTaskCreatePinnedToCore(readSerial, // function that implements the task
-                          "Task 1",   // name of the task
-                          1024,       // stack size in words
-                          NULL,       // task input parameter
-                          2,          // priority of the task
-                          &read_serial,    // task handle
-                          app_cpu     // core where the task should run
+
+  // wait a moment to start
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  Serial.println();
+
+  Serial.println("--- FreeRTOS Memory Demo ---");
+
+  // start the 1 only task
+
+  xTaskCreatePinnedToCore(
+    testTask,   // Task function
+    "TestTask", // Name of the task
+    1500,       // Stack size in words
+    NULL,       // Task input parameter
+    1,          // Priority of the task
+    NULL,       // Task handle
+    app_cpu      // Core where the task should run
   );
 
-  // create task 2
-  xTaskCreatePinnedToCore(blinkLed, // function that implements the task
-                          "Task 2",   // name of the task
-                          1024,       // stack size in words
-                          NULL,       // task input parameter
-                          1,          // priority of the task
-                          &blink_led,    // task handle
-                          app_cpu     // core where the task should run
-  );
+  vTaskDelete(NULL); // delete the setup and loop task
 }
 
-void loop() {
-
-  // // Suspend the higher priority task for some intervals
-  // for (int i = 0; i < 3; i++) {
-  //   vTaskSuspend(blink_led);
-
-  //   vTaskDelay(2000 / portTICK_PERIOD_MS);
-  //   vTaskResume(task_2);
-  //   vTaskDelay(2000 / portTICK_PERIOD_MS);
-  // }
-
-  // // Delete the lower priority task
-  // if (task_1 != NULL) {
-  //   vTaskDelete(task_1);
-  //   task_1 = NULL;
-  // }
-
+void loop () {
+  // 
 }
